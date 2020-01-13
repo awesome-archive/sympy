@@ -4,7 +4,6 @@ from __future__ import print_function, division
 
 from sympy import (cacheit, conjugate, Expr, Function, integrate, oo, sqrt,
                    Tuple)
-from sympy.core.compatibility import range
 from sympy.printing.pretty.stringpict import stringPict
 from sympy.physics.quantum.qexpr import QExpr, dispatch_method
 
@@ -928,7 +927,7 @@ class Wavefunction(Function):
         """
         const = self.norm
 
-        if const == oo:
+        if const is oo:
             raise NotImplementedError("The function is not normalizable!")
         else:
             return Wavefunction((const)**(-1)*self.expr, *self.args[1:])

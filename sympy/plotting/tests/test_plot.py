@@ -1,10 +1,11 @@
-from sympy import (pi, sin, cos, Symbol, Integral, Sum, sqrt, log,
-                   oo, LambertW, I, meijerg, exp_polar, Max, Piecewise, And)
+from sympy import (pi, sin, cos, Symbol, Integral, Sum, sqrt, log, exp, Ne,
+                   oo, LambertW, I, meijerg, exp_polar, Max, Piecewise, And,
+                   real_root)
 from sympy.plotting import (plot, plot_parametric, plot3d_parametric_line,
                             plot3d, plot3d_parametric_surface)
 from sympy.plotting.plot import unset_show, plot_contour, PlotGrid
 from sympy.utilities import lambdify as lambdify_
-from sympy.utilities.pytest import skip, raises, warns
+from sympy.testing.pytest import skip, raises, warns
 from sympy.plotting.experimental_lambdify import lambdify
 from sympy.external import import_module
 
@@ -458,7 +459,7 @@ def test_append_issue_7140():
     x = Symbol('x')
     p1 = plot(x)
     p2 = plot(x**2)
-    p3 = plot(x + 2)
+    plot(x + 2)
 
     # append a series
     p2.append(p1[0])
@@ -500,7 +501,86 @@ def test_issue_15265():
         lambda: plot(eqn, xlim=(-1, 1), ylim=(-1, S.ImaginaryUnit)))
 
     raises(ValueError,
-        lambda: plot(eqn, xlim=(-S.Infinity, 1), ylim=(-1, 1)))
+        lambda: plot(eqn, xlim=(S.NegativeInfinity, 1), ylim=(-1, 1)))
 
     raises(ValueError,
         lambda: plot(eqn, xlim=(-1, 1), ylim=(-1, S.Infinity)))
+
+
+def test_empty_Plot():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    from sympy.plotting.plot import Plot
+    p = Plot()
+    # No exception showing an empty plot
+    p.show()
+
+
+def test_empty_plot():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    # No exception showing an empty plot
+    plot()
+
+
+def test_issue_17405():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    x = Symbol('x')
+    f = x**0.3 - 10*x**3 + x**2
+    p = plot(f, (x, -10, 10), show=False)
+    # Random number of segments, probably more than 100, but we want to see
+    # that there are segments generated, as opposed to when the bug was present
+    assert len(p[0].get_segments()) >= 30
+
+
+def test_logplot_PR_16796():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    x = Symbol('x')
+    p = plot(x, (x, .001, 100), xscale='log', show=False)
+    # Random number of segments, probably more than 100, but we want to see
+    # that there are segments generated, as opposed to when the bug was present
+    assert len(p[0].get_segments()) >= 30
+    assert p[0].end == 100.0
+    assert p[0].start == .001
+
+
+def test_issue_16572():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    x = Symbol('x')
+    p = plot(LambertW(x), show=False)
+    # Random number of segments, probably more than 50, but we want to see
+    # that there are segments generated, as opposed to when the bug was present
+    assert len(p[0].get_segments()) >= 30
+
+
+def test_issue_11865():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    k = Symbol('k', integer=True)
+    f = Piecewise((-I*exp(I*pi*k)/k + I*exp(-I*pi*k)/k, Ne(k, 0)), (2*pi, True))
+    p = plot(f, show=False)
+    # Random number of segments, probably more than 100, but we want to see
+    # that there are segments generated, as opposed to when the bug was present
+    # and that there are no exceptions.
+    assert len(p[0].get_segments()) >= 30
+
+
+def test_issue_11461():
+    matplotlib = import_module('matplotlib', min_module_version='1.1.0', catch=(RuntimeError,))
+    if not matplotlib:
+        skip("Matplotlib not the default backend")
+    x = Symbol('x')
+    p = plot(real_root((log(x/(x-2))), 3), show=False)
+    # Random number of segments, probably more than 100, but we want to see
+    # that there are segments generated, as opposed to when the bug was present
+    # and that there are no exceptions.
+    assert len(p[0].get_segments()) >= 30

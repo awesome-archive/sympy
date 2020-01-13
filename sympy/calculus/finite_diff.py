@@ -18,7 +18,7 @@ for:
 """
 
 from sympy import Derivative, S
-from sympy.core.compatibility import iterable, range
+from sympy.core.compatibility import iterable
 from sympy.core.decorators import deprecated
 
 
@@ -167,6 +167,9 @@ def finite_diff_weights(order, x_list, x0=S.One):
 
     """
     # The notation below closely corresponds to the one used in the paper.
+    order = S(order)
+    if not order.is_number:
+        raise ValueError("Cannot handle symbolic order.")
     if order < 0:
         raise ValueError("Negative derivative order illegal.")
     if int(order) != order:
@@ -175,10 +178,10 @@ def finite_diff_weights(order, x_list, x0=S.One):
     N = len(x_list) - 1
     delta = [[[0 for nu in range(N+1)] for n in range(N+1)] for
              m in range(M+1)]
-    delta[0][0][0] = S(1)
-    c1 = S(1)
+    delta[0][0][0] = S.One
+    c1 = S.One
     for n in range(1, N+1):
-        c2 = S(1)
+        c2 = S.One
         for nu in range(0, n):
             c3 = x_list[n]-x_list[nu]
             c2 = c2 * c3
@@ -195,7 +198,7 @@ def finite_diff_weights(order, x_list, x0=S.One):
     return delta
 
 
-def apply_finite_diff(order, x_list, y_list, x0=S(0)):
+def apply_finite_diff(order, x_list, y_list, x0=S.Zero):
     """
     Calculates the finite difference approximation of
     the derivative of requested order at ``x0`` from points
@@ -213,7 +216,7 @@ def apply_finite_diff(order, x_list, y_list, x0=S(0)):
         variable in x_list.
     x0: Number or Symbol
         At what value of the independent variable the derivative should be
-        evaluated. Defaults to S(0).
+        evaluated. Defaults to 0.
 
     Returns
     =======

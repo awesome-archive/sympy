@@ -33,7 +33,6 @@ from sympy.codegen.fnodes import (
     intent_in, intent_out, intent_inout
 )
 from sympy.core import S, Add, N, Float, Symbol
-from sympy.core.compatibility import string_types, range
 from sympy.core.function import Function
 from sympy.core.relational import Eq
 from sympy.sets import Range
@@ -204,7 +203,7 @@ class FCodePrinter(CodePrinter):
         arg, = expr.args
         if arg.is_integer:
             new_expr = merge(0, isign(1, arg), Eq(arg, 0))
-        elif arg.is_complex:
+        elif (arg.is_complex or arg.is_infinite):
             new_expr = merge(cmplx(literal_dp(0), literal_dp(0)), arg/Abs(arg), Eq(Abs(arg), literal_dp(0)))
         else:
             new_expr = merge(literal_dp(0), dsign(literal_dp(1), arg), Eq(arg, literal_dp(0)))
@@ -578,7 +577,7 @@ class FCodePrinter(CodePrinter):
 
     def indent_code(self, code):
         """Accepts a string of code or a list of code lines"""
-        if isinstance(code, string_types):
+        if isinstance(code, str):
             code_lines = self.indent_code(code.splitlines(True))
             return ''.join(code_lines)
 

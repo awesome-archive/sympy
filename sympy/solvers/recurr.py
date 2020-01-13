@@ -64,7 +64,7 @@ from sympy.polys import Poly, quo, gcd, lcm, roots, resultant
 from sympy.functions import binomial, factorial, FallingFactorial, RisingFactorial
 from sympy.matrices import Matrix, casoratian
 from sympy.concrete import product
-from sympy.core.compatibility import default_sort_key, range
+from sympy.core.compatibility import default_sort_key
 from sympy.utilities.iterables import numbered_symbols
 
 
@@ -226,7 +226,7 @@ def rsolve_poly(coeffs, f, n, **hints):
             D = p.subs(n, a + k)
 
             for i in range(1, k + 1):
-                B *= -Rational(k - i + 1, i)
+                B *= Rational(i - k - 1, i)
                 D += B * p.subs(n, a + k - i)
 
             return D

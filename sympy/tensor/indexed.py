@@ -109,7 +109,7 @@ from __future__ import print_function, division
 from sympy.core.assumptions import StdFactKB
 from sympy.core import Expr, Tuple, sympify, S
 from sympy.core.symbol import _filter_assumptions, Symbol
-from sympy.core.compatibility import (is_sequence, string_types, NotIterable,
+from sympy.core.compatibility import (is_sequence, NotIterable,
                                       Iterable)
 from sympy.core.logic import fuzzy_bool
 from sympy.core.sympify import _sympify
@@ -143,7 +143,6 @@ class Indexed(Expr):
     is_symbol = True
     is_Atom = True
 
-
     def __new__(cls, base, *args, **kw_args):
         from sympy.utilities.misc import filldedent
         from sympy.tensor.array.ndim_array import NDimArray
@@ -151,7 +150,7 @@ class Indexed(Expr):
 
         if not args:
             raise IndexException("Indexed needs at least one index.")
-        if isinstance(base, (string_types, Symbol)):
+        if isinstance(base, (str, Symbol)):
             base = IndexedBase(base)
         elif not hasattr(base, '__getitem__') and not isinstance(base, IndexedBase):
             raise TypeError(filldedent("""
@@ -437,11 +436,10 @@ class IndexedBase(Expr, NotIterable):
         from sympy import MatrixBase, NDimArray
 
         assumptions, kw_args = _filter_assumptions(kw_args)
-        if isinstance(label, string_types):
-            label = Symbol(label)
+        if isinstance(label, str):
+            label = Symbol(label, **assumptions)
         elif isinstance(label, Symbol):
             assumptions = label._merge(assumptions)
-            label = Symbol(label.name)
         elif isinstance(label, (MatrixBase, NDimArray)):
             return label
         elif isinstance(label, Iterable):
@@ -643,7 +641,7 @@ class Idx(Expr):
     def __new__(cls, label, range=None, **kw_args):
         from sympy.utilities.misc import filldedent
 
-        if isinstance(label, string_types):
+        if isinstance(label, str):
             label = Symbol(label, integer=True)
         label, range = list(map(sympify, (label, range)))
 

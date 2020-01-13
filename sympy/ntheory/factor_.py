@@ -7,7 +7,7 @@ import random
 import math
 
 from sympy.core import sympify
-from sympy.core.compatibility import as_int, SYMPY_INTS, range, string_types
+from sympy.core.compatibility import as_int, SYMPY_INTS
 from sympy.core.containers import Dict
 from sympy.core.evalf import bitcount
 from sympy.core.expr import Expr
@@ -130,7 +130,7 @@ def smoothness_p(n, m=-1, power=0, visual=None):
     elif visual not in (True, False):
         visual = None
 
-    if isinstance(n, string_types):
+    if isinstance(n, str):
         if visual:
             return n
         d = {}
@@ -336,7 +336,7 @@ def perfect_power(n, candidates=None, big=True, factor=True):
     See Also
     ========
     sympy.core.power.integer_nthroot
-    primetest.is_square
+    sympy.ntheory.primetest.is_square
     """
     from sympy.core.power import integer_nthroot
     n = as_int(n)
@@ -1014,7 +1014,7 @@ def factorint(n, limit=None, use_trial=True, use_rho=True, use_pm1=True,
         fac = factorint(n, limit=limit, use_trial=use_trial,
                            use_rho=use_rho, use_pm1=use_pm1,
                            verbose=verbose, visual=False, multiple=False)
-        factorlist = sum(([p] * fac[p] if fac[p] > 0 else [S(1)/p]*(-fac[p])
+        factorlist = sum(([p] * fac[p] if fac[p] > 0 else [S.One/p]*(-fac[p])
                                for p in sorted(fac)), [])
         return factorlist
 
@@ -1178,7 +1178,8 @@ def factorint(n, limit=None, use_trial=True, use_rho=True, use_pm1=True,
                     facs = factorint(r, limit=limit, use_trial=use_trial,
                                      use_rho=use_rho, use_pm1=use_pm1,
                                      verbose=verbose)
-                    factors.update(facs)
+                    for k, v in facs.items():
+                        factors[k] = factors.get(k, 0) + v
                 raise StopIteration
 
             # ...see if factorization can be terminated
@@ -1301,7 +1302,7 @@ def factorrat(rat, limit=None, use_trial=True, use_rho=True, use_pm1=True,
         fac = factorrat(rat, limit=limit, use_trial=use_trial,
                   use_rho=use_rho, use_pm1=use_pm1,
                   verbose=verbose, visual=False, multiple=False)
-        factorlist = sum(([p] * fac[p] if fac[p] > 0 else [S(1)/p]*(-fac[p])
+        factorlist = sum(([p] * fac[p] if fac[p] > 0 else [S.One/p]*(-fac[p])
                                for p, _ in sorted(fac.items(),
                                                         key=lambda elem: elem[0]
                                                         if elem[1] > 0
@@ -1375,7 +1376,7 @@ def primefactors(n, limit=None, verbose=False):
     return s
 
 
-def _divisors(n):
+def _divisors(n, proper=False):
     """Helper function for divisors which generates the divisors."""
 
     factordict = factorint(n)
@@ -1392,11 +1393,16 @@ def _divisors(n):
                 for p in pows:
                     yield p * q
 
-    for p in rec_gen():
-        yield p
+    if proper:
+        for p in rec_gen():
+            if p != n:
+                yield p
+    else:
+        for p in rec_gen():
+            yield p
 
 
-def divisors(n, generator=False):
+def divisors(n, generator=False, proper=False):
     r"""
     Return all divisors of n sorted from 1..n by default.
     If generator is ``True`` an unordered generator is returned.
@@ -1431,21 +1437,26 @@ def divisors(n, generator=False):
 
     n = as_int(abs(n))
     if isprime(n):
+        if proper:
+            return [1]
         return [1, n]
     if n == 1:
+        if proper:
+            return []
         return [1]
     if n == 0:
         return []
-    rv = _divisors(n)
+    rv = _divisors(n, proper)
     if not generator:
         return sorted(rv)
     return rv
 
 
-def divisor_count(n, modulus=1):
+def divisor_count(n, modulus=1, proper=False):
     """
     Return the number of divisors of ``n``. If ``modulus`` is not 1 then only
-    those that are divisible by ``modulus`` are counted.
+    those that are divisible by ``modulus`` are counted. If ``proper`` is True
+    then the divisor of ``n`` will not be counted.
 
     Examples
     ========
@@ -1453,11 +1464,15 @@ def divisor_count(n, modulus=1):
     >>> from sympy import divisor_count
     >>> divisor_count(6)
     4
+    >>> divisor_count(6, 2)
+    2
+    >>> divisor_count(6, proper=True)
+    3
 
     See Also
     ========
 
-    factorint, divisors, totient
+    factorint, divisors, totient, proper_divisor_count
 
     """
 
@@ -1469,7 +1484,57 @@ def divisor_count(n, modulus=1):
             return 0
     if n == 0:
         return 0
-    return Mul(*[v + 1 for k, v in factorint(n).items() if k > 1])
+    n = Mul(*[v + 1 for k, v in factorint(n).items() if k > 1])
+    if n and proper:
+        n -= 1
+    return n
+
+
+def proper_divisors(n, generator=False):
+    """
+    Return all divisors of n except n, sorted by default.
+    If generator is ``True`` an unordered generator is returned.
+
+    Examples
+    ========
+
+    >>> from sympy import proper_divisors, proper_divisor_count
+    >>> proper_divisors(24)
+    [1, 2, 3, 4, 6, 8, 12]
+    >>> proper_divisor_count(24)
+    7
+    >>> list(proper_divisors(120, generator=True))
+    [1, 2, 4, 8, 3, 6, 12, 24, 5, 10, 20, 40, 15, 30, 60]
+
+    See Also
+    ========
+
+    factorint, divisors, proper_divisor_count
+
+    """
+    return divisors(n, generator=generator, proper=True)
+
+
+def proper_divisor_count(n, modulus=1):
+    """
+    Return the number of proper divisors of ``n``.
+
+    Examples
+    ========
+
+    >>> from sympy import proper_divisor_count
+    >>> proper_divisor_count(6)
+    3
+    >>> proper_divisor_count(6, modulus=2)
+    1
+
+    See Also
+    ========
+
+    divisors, proper_divisors, divisor_count
+
+    """
+    return divisor_count(n, modulus=modulus, proper=True)
 
 
 def _udivisors(n):
@@ -1676,6 +1741,8 @@ class totient(Function):
     1
     >>> totient(25)
     20
+    >>> totient(45) == totient(5)*totient(9)
+    True
 
     See Also
     ========
@@ -1696,15 +1763,43 @@ class totient(Function):
             if n < 1:
                 raise ValueError("n must be a positive integer")
             factors = factorint(n)
-            t = 1
-            for p, k in factors.items():
-                t *= (p - 1) * p**(k - 1)
-            return t
+            return cls._from_factors(factors)
         elif not isinstance(n, Expr) or (n.is_integer is False) or (n.is_positive is False):
             raise ValueError("n must be a positive integer")
 
     def _eval_is_integer(self):
         return fuzzy_and([self.args[0].is_integer, self.args[0].is_positive])
+
+    @classmethod
+    def _from_distinct_primes(self, *args):
+        """Subroutine to compute totient from the list of assumed
+        distinct primes
+
+        Examples
+        ========
+
+        >>> from sympy.ntheory.factor_ import totient
+        >>> totient._from_distinct_primes(5, 7)
+        24
+        """
+        from functools import reduce
+        return reduce(lambda i, j: i * (j-1), args, 1)
+
+    @classmethod
+    def _from_factors(self, factors):
+        """Subroutine to compute totient from already-computed factors
+
+        Examples
+        ========
+
+        >>> from sympy.ntheory.factor_ import totient
+        >>> totient._from_factors({5: 2})
+        20
+        """
+        t = 1
+        for p, k in factors.items():
+            t *= (p - 1) * p**(k - 1)
+        return t
 
 
 class reduced_totient(Function):
@@ -1744,13 +1839,27 @@ class reduced_totient(Function):
             if n < 1:
                 raise ValueError("n must be a positive integer")
             factors = factorint(n)
-            t = 1
-            for p, k in factors.items():
-                if p == 2 and k > 2:
-                    t = ilcm(t, 2**(k - 2))
-                else:
-                    t = ilcm(t, (p - 1) * p**(k - 1))
-            return t
+            return cls._from_factors(factors)
+
+    @classmethod
+    def _from_factors(self, factors):
+        """Subroutine to compute totient from already-computed factors
+        """
+        t = 1
+        for p, k in factors.items():
+            if p == 2 and k > 2:
+                t = ilcm(t, 2**(k - 2))
+            else:
+                t = ilcm(t, (p - 1) * p**(k - 1))
+        return t
+
+    @classmethod
+    def _from_distinct_primes(self, *args):
+        """Subroutine to compute totient from the list of assumed
+        distinct primes
+        """
+        args = [p - 1 for p in args]
+        return ilcm(*args)
 
     def _eval_is_integer(self):
         return fuzzy_and([self.args[0].is_integer, self.args[0].is_positive])
@@ -2262,3 +2371,74 @@ def is_amicable(m, n):
         return False
     a, b = map(lambda i: divisor_sigma(i), (m, n))
     return a == b == (m + n)
+
+
+def dra(n, b):
+    """
+    Returns the additive digital root of a natural number ``n`` in base ``b``
+    which is a single digit value obtained by an iterative process of summing
+    digits, on each iteration using the result from the previous iteration to
+    compute a digit sum.
+
+    Examples
+    ========
+
+    >>> from sympy.ntheory.factor_ import dra
+    >>> dra(3110, 12)
+    8
+
+    References
+    ==========
+
+    .. [1] https://en.wikipedia.org/wiki/Digital_root
+
+    """
+
+    num = abs(as_int(n))
+    b = as_int(b)
+    if b <= 1:
+        raise ValueError("Base should be an integer greater than 1")
+
+    if num == 0:
+        return 0
+
+    return (1 + (num - 1) % (b - 1))
+
+
+def drm(n, b):
+    """
+    Returns the multiplicative digital root of a natural number ``n`` in a given
+    base ``b`` which is a single digit value obtained by an iterative process of
+    multiplying digits, on each iteration using the result from the previous
+    iteration to compute the digit multiplication.
+
+    Examples
+    ========
+
+    >>> from sympy.ntheory.factor_ import drm
+    >>> drm(9876, 10)
+    0
+
+    >>> drm(49, 10)
+    8
+
+    References
+    ==========
+
+    .. [1] http://mathworld.wolfram.com/MultiplicativeDigitalRoot.html
+
+    """
+
+    n = abs(as_int(n))
+    b = as_int(b)
+    if b <= 1:
+        raise ValueError("Base should be an integer greater than 1")
+    while n > b:
+        mul = 1
+        while n > 1:
+            n, r = divmod(n, b)
+            if r == 0:
+                return 0
+            mul *= r
+        n = mul
+    return n

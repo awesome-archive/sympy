@@ -128,7 +128,6 @@ from itertools import chain
 from collections import defaultdict
 from sympy.core import Symbol, Tuple, Dummy
 from sympy.core.basic import Basic
-from sympy.core.compatibility import string_types
 from sympy.core.expr import Expr
 from sympy.core.numbers import Float, Integer, oo
 from sympy.core.relational import Lt, Le, Ge, Gt
@@ -153,7 +152,7 @@ def _mk_Tuple(args):
 
     sympy.Tuple
     """
-    args = [String(arg) if isinstance(arg, string_types) else arg for arg in args]
+    args = [String(arg) if isinstance(arg, str) else arg for arg in args]
     return Tuple(*args)
 
 
@@ -169,7 +168,7 @@ class Token(Basic):
     Subclasses should not need to override the ``__new__()`` method. They may
     define a class or static method named ``_construct_<attr>`` for each
     attribute to process the value passed to ``__new__()``. Attributes listed
-    in the class attribute ``not_in_args`` are not passed to :class:`sympy.Basic`.
+    in the class attribute ``not_in_args`` are not passed to :class:`~.Basic`.
     """
 
     __slots__ = []
@@ -189,7 +188,8 @@ class Token(Basic):
     @classmethod
     def _construct(cls, attr, arg):
         """ Construct an attribute value from argument passed to ``__new__()``. """
-        if arg == None: # Must be "== None", cannot be "is None"
+        # arg may be ``NoneToken()``, so comparation is done using == instead of ``is`` operator
+        if arg == None:
             return cls.defaults.get(attr, none)
         else:
             if isinstance(arg, Dummy):  # sympy's replace uses Dummy instances
@@ -266,7 +266,7 @@ class Token(Basic):
             if isinstance(arg, Token):
                 return printer._print(arg, *args, joiner=self._joiner(k, il), **kwargs)
             else:
-                return printer._print(v, *args, **kwargs)
+                return printer._print(arg, *args, **kwargs)
 
         if isinstance(v, Tuple):
             joined = self._joiner(k, il).join([_print(arg) for arg in v.args])
@@ -879,7 +879,7 @@ class String(Token):
 
     @classmethod
     def _construct_text(cls, text):
-        if not isinstance(text, string_types):
+        if not isinstance(text, str):
             raise TypeError("Argument text is not a string type.")
         return text
 
@@ -1046,7 +1046,6 @@ class Type(Token):
             Absolute tolerance (in addition to ``rtol``).
         limits : dict
             Values given by ``limits.h``, x86/IEEE754 defaults if not given.
-            Default: :attr:`default_limits`.
         type_aliases : dict
             Maps substitutions for Type, e.g. {integer: int64, real: float32}
 
@@ -1469,10 +1468,15 @@ class Variable(Node):
         Examples
         ========
 
-        >>> from sympy.codegen.ast import Variable
+        >>> from sympy.codegen.ast import Variable, NoneToken
         >>> x = Variable('x')
         >>> decl1 = x.as_Declaration()
-        >>> decl1.variable.value == None
+        >>> # value is special NoneToken() which must be tested with == operator
+        >>> decl1.variable.value is None  # won't work
+        False
+        >>> decl1.variable.value == None  # not PEP-8 compliant
+        True
+        >>> decl1.variable.value == NoneToken()  # OK
         True
         >>> decl2 = x.as_Declaration(value=42.0)
         >>> decl2.variable.value == 42
@@ -1511,7 +1515,7 @@ class Pointer(Variable):
     >>> i = Symbol('i', integer=True)
     >>> p = Pointer('x')
     >>> p[i+1]
-    Element(x, indices=((i + 1,),))
+    Element(x, indices=(i + 1,))
 
     """
 
@@ -1561,11 +1565,16 @@ class Declaration(Token):
     ========
 
     >>> from sympy import Symbol
-    >>> from sympy.codegen.ast import Declaration, Type, Variable, integer, untyped
+    >>> from sympy.codegen.ast import Declaration, Type, Variable, NoneToken, integer, untyped
     >>> z = Declaration('z')
     >>> z.variable.type == untyped
     True
-    >>> z.variable.value == None
+    >>> # value is special NoneToken() which must be tested with == operator
+    >>> z.variable.value is None  # won't work
+    False
+    >>> z.variable.value == None  # not PEP-8 compliant
+    True
+    >>> z.variable.value == NoneToken()  # OK
     True
     """
     __slots__ = ['variable']

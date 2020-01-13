@@ -2,7 +2,7 @@ from sympy import (
     adjoint, conjugate, Dummy, Eijk, KroneckerDelta, LeviCivita, Symbol,
     symbols, transpose, Piecewise, Ne
 )
-from sympy.core.compatibility import range, long
+from sympy.core.compatibility import long
 from sympy.physics.secondquant import evaluate_deltas, F
 
 x, y = symbols('x y')
@@ -62,6 +62,17 @@ def test_kronecker_delta():
     assert (KroneckerDelta(i, j) == KroneckerDelta(j, i)) == True
 
     assert KroneckerDelta(i, j).rewrite(Piecewise) == Piecewise((0, Ne(i, j)), (1, True))
+
+    # Tests with range:
+    assert KroneckerDelta(i, j, (0, i)).args == (i, j, (0, i))
+    assert KroneckerDelta(i, j, (-j, i)).delta_range == (-j, i)
+
+    # If index is out of range, return zero:
+    assert KroneckerDelta(i, j, (0, i-1)) == 0
+    assert KroneckerDelta(-1, j, (0, i-1)) == 0
+    assert KroneckerDelta(j, -1, (0, i-1)) == 0
+    assert KroneckerDelta(j, i, (0, i-1)) == 0
+
 
 def test_kronecker_delta_secondquant():
     """secondquant-specific methods"""

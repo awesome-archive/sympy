@@ -11,7 +11,6 @@ complete source code files.
 
 from __future__ import print_function, division
 from sympy.core import Mul, Pow, S, Rational
-from sympy.core.compatibility import string_types, range
 from sympy.core.mul import _keep_coeff
 from sympy.printing.codeprinter import CodePrinter, Assignment
 from sympy.printing.precedence import precedence, PRECEDENCE
@@ -407,6 +406,16 @@ class JuliaCodePrinter(CodePrinter):
     def _print_Identity(self, expr):
         return "eye(%s)" % self._print(expr.shape[0])
 
+    def _print_HadamardProduct(self, expr):
+        return '.*'.join([self.parenthesize(arg, precedence(expr))
+                          for arg in expr.args])
+
+    def _print_HadamardPower(self, expr):
+        PREC = precedence(expr)
+        return '.**'.join([
+            self.parenthesize(expr.base, PREC),
+            self.parenthesize(expr.exp, PREC)
+            ])
 
     # Note: as of 2015, Julia doesn't have spherical Bessel functions
     def _print_jn(self, expr):
@@ -464,7 +473,7 @@ class JuliaCodePrinter(CodePrinter):
         """Accepts a string of code or a list of code lines"""
 
         # code mostly copied from ccode
-        if isinstance(code, string_types):
+        if isinstance(code, str):
             code_lines = self.indent_code(code.splitlines(True))
             return ''.join(code_lines)
 

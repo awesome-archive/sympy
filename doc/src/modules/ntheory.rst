@@ -1,5 +1,6 @@
+=============
 Number Theory
-====================
+=============
 
 .. module:: sympy.ntheory.generate
 
@@ -55,7 +56,11 @@ Ntheory Functions Reference
 
 .. autofunction:: divisors
 
+.. autofunction:: proper_divisors
+
 .. autofunction:: divisor_count
+
+.. autofunction:: proper_divisor_count
 
 .. autofunction:: udivisors
 

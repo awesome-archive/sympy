@@ -4,7 +4,7 @@ from functools import wraps
 
 from sympy.core import Add, Mul, Pow, S, sympify, Float
 from sympy.core.basic import Basic
-from sympy.core.compatibility import default_sort_key, string_types
+from sympy.core.compatibility import default_sort_key
 from sympy.core.function import Lambda
 from sympy.core.mul import _keep_coeff
 from sympy.core.symbol import Symbol
@@ -61,6 +61,7 @@ class CodePrinter(StrPrinter):
     _rewriteable_functions = {
             'erf2': 'erf',
             'Li': 'li',
+            'beta': 'gamma'
     }
 
     def __init__(self, settings=None):
@@ -84,7 +85,7 @@ class CodePrinter(StrPrinter):
         """
         from sympy.matrices.expressions.matexpr import MatrixSymbol
 
-        if isinstance(assign_to, string_types):
+        if isinstance(assign_to, str):
             if expr.is_Matrix:
                 assign_to = MatrixSymbol(assign_to, *expr.shape)
             else:
@@ -371,7 +372,7 @@ class CodePrinter(StrPrinter):
         if expr.func.__name__ in self.known_functions:
             cond_func = self.known_functions[expr.func.__name__]
             func = None
-            if isinstance(cond_func, string_types):
+            if isinstance(cond_func, str):
                 func = cond_func
             else:
                 for cond, func in cond_func:
@@ -385,12 +386,12 @@ class CodePrinter(StrPrinter):
         elif hasattr(expr, '_imp_') and isinstance(expr._imp_, Lambda):
             # inlined function
             return self._print(expr._imp_(*expr.args))
-        elif expr.is_Function and self._settings.get('allow_unknown_functions', False):
-            return '%s(%s)' % (self._print(expr.func), ', '.join(map(self._print, expr.args)))
         elif (expr.func.__name__ in self._rewriteable_functions and
               self._rewriteable_functions[expr.func.__name__] in self.known_functions):
             # Simple rewrite to supported function possible
             return self._print(expr.rewrite(self._rewriteable_functions[expr.func.__name__]))
+        elif expr.is_Function and self._settings.get('allow_unknown_functions', False):
+            return '%s(%s)' % (self._print(expr.func), ', '.join(map(self._print, expr.args)))
         else:
             return self._print_not_supported(expr)
 

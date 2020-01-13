@@ -4,7 +4,7 @@ from itertools import permutations
 
 from sympy.combinatorics import Permutation
 from sympy.core import AtomicExpr, Basic, Expr, Dummy, Function, sympify, diff, Pow, Mul, Add, symbols, Tuple
-from sympy.core.compatibility import range, reduce
+from sympy.core.compatibility import reduce
 from sympy.core.numbers import Zero
 from sympy.functions import factorial
 from sympy.matrices import Matrix
@@ -1036,6 +1036,8 @@ class BaseCovarDerivativeOp(Expr):
                       for k in range(v._coord_sys.dim)])
             derivs.append(d)
         to_subs = [wrt_vector(d) for d in d_funcs]
+        # XXX: This substitution can fail when there are Dummy symbols and the
+        # cache is disabled: https://github.com/sympy/sympy/issues/17794
         result = d_result.subs(list(zip(to_subs, derivs)))
 
         # Remove the dummies

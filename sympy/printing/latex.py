@@ -23,7 +23,7 @@ from sympy.printing.precedence import precedence, PRECEDENCE
 import mpmath.libmp as mlib
 from mpmath.libmp import prec_to_dps
 
-from sympy.core.compatibility import default_sort_key, range
+from sympy.core.compatibility import default_sort_key
 from sympy.utilities.iterables import has_variety
 
 import re
@@ -141,6 +141,7 @@ class LatexPrinter(Printer):
         "imaginary_unit": "i",
         "gothic_re_im": False,
         "decimal_separator": "period",
+        "perm_cyclic": True,
     }
 
     def __init__(self, settings=None):
@@ -374,7 +375,39 @@ class LatexPrinter(Printer):
         term_tex = term_tex.replace(']', r"\right)")
         return term_tex
 
-    _print_Permutation = _print_Cycle
+    def _print_Permutation(self, expr):
+        from sympy.combinatorics.permutations import Permutation
+        from sympy.utilities.exceptions import SymPyDeprecationWarning
+
+        perm_cyclic = Permutation.print_cyclic
+        if perm_cyclic is not None:
+            SymPyDeprecationWarning(
+                feature="Permutation.print_cyclic = {}".format(perm_cyclic),
+                useinstead="init_printing(perm_cyclic={})"
+                .format(perm_cyclic),
+                issue=15201,
+                deprecated_since_version="1.6").warn()
+        else:
+            perm_cyclic = self._settings.get("perm_cyclic", True)
+
+        if perm_cyclic:
+            return self._print_Cycle(expr)
+
+        if expr.size == 0:
+            return r"\left( \right)"
+
+        lower = [self._print(arg) for arg in expr.array_form]
+        upper = [self._print(arg) for arg in range(len(lower))]
+
+        row1 = " & ".join(upper)
+        row2 = " & ".join(lower)
+        mat = r" \\ ".join((row1, row2))
+        return r"\begin{pmatrix} %s \end{pmatrix}" % mat
+
+
+    def _print_AppliedPermutation(self, expr):
+        perm, var = expr.args
+        return r"\sigma_{%s}(%s)" % (self._print(perm), self._print(var))
 
     def _print_Float(self, expr):
         # Based off of that in StrPrinter
@@ -671,7 +704,7 @@ class LatexPrinter(Printer):
         return self._print(expr.label)
 
     def _print_Derivative(self, expr):
-        if requires_partial(expr):
+        if requires_partial(expr.expr):
             diff_symbol = r'\partial'
         else:
             diff_symbol = r'd'
@@ -685,12 +718,12 @@ class LatexPrinter(Printer):
             else:
                 tex += r"%s %s^{%s}" % (diff_symbol,
                                         self.parenthesize_super(self._print(x)),
-                                        num)
+                                        self._print(num))
 
         if dim == 1:
             tex = r"\frac{%s}{%s}" % (diff_symbol, tex)
         else:
-            tex = r"\frac{%s^{%s}}{%s}" % (diff_symbol, dim, tex)
+            tex = r"\frac{%s^{%s}}{%s}" % (diff_symbol, self._print(dim), tex)
 
         return r"%s %s" % (tex, self.parenthesize(expr.expr,
                                                   PRECEDENCE["Mul"],
@@ -844,7 +877,7 @@ class LatexPrinter(Printer):
         return self._hprint_Function(str(expr))
 
     def _print_ElementwiseApplyFunction(self, expr):
-        return r"%s\left({%s}\ldots\right)" % (
+        return r"{%s}_{\circ}\left({%s}\right)" % (
             self._print(expr.function),
             self._print(expr.expr),
         )
@@ -1616,7 +1649,10 @@ class LatexPrinter(Printer):
             map(lambda arg: parens(arg, prec, strict=True), args))
 
     def _print_HadamardPower(self, expr):
-        template = r"%s^{\circ {%s}}"
+        if precedence_traditional(expr.exp) < PRECEDENCE["Mul"]:
+            template = r"%s^{\circ \left({%s}\right)}"
+        else:
+            template = r"%s^{\circ {%s}}"
         return self._helper_print_standard_power(expr, template)
 
     def _print_KroneckerProduct(self, expr):
@@ -1651,6 +1687,10 @@ class LatexPrinter(Printer):
     def _print_Identity(self, I):
         return r"\mathbb{I}" if self._settings[
             'mat_symbol_style'] == 'plain' else r"\mathbf{I}"
+
+    def _print_PermutationMatrix(self, P):
+        perm_str = self._print(P.args[0])
+        return "P_{%s}" % perm_str
 
     def _print_NDimArray(self, expr):
 
@@ -1771,6 +1811,19 @@ class LatexPrinter(Printer):
             self._print(expr.args[0])
         )
 
+    def _print_PartialDerivative(self, expr):
+        if len(expr.variables) == 1:
+            return r"\frac{\partial}{\partial {%s}}{%s}" % (
+                self._print(expr.variables[0]),
+                self.parenthesize(expr.expr, PRECEDENCE["Mul"], False)
+            )
+        else:
+            return r"\frac{\partial^{%s}}{%s}{%s}" % (
+                len(expr.variables),
+                " ".join([r"\partial {%s}" % self._print(i) for i in expr.variables]),
+                self.parenthesize(expr.expr, PRECEDENCE["Mul"], False)
+            )
+
     def _print_UniversalSet(self, expr):
         return r"\mathbb{U}"
 
@@ -1869,12 +1922,6 @@ class LatexPrinter(Printer):
             tex = r'\left(%s\right)^{%s}' % (tex, exp)
         return tex
 
-    def _print_ProductSet(self, p):
-        if len(p.sets) > 1 and not has_variety(p.sets):
-            return self._print(p.sets[0]) + "^{%d}" % len(p.sets)
-        else:
-            return r" \times ".join(self._print(set) for set in p.sets)
-
     def _print_RandomDomain(self, d):
         if hasattr(d, 'as_boolean'):
             return '\\text{Domain: }' + self._print(d.as_boolean())
@@ -1906,7 +1953,12 @@ class LatexPrinter(Printer):
     def _print_Range(self, s):
         dots = r'\ldots'
 
-        if s.start.is_infinite:
+        if s.start.is_infinite and s.stop.is_infinite:
+            if s.step.is_positive:
+                printset = dots, -1, 0, 1, dots
+            else:
+                printset = dots, 1, 0, -1, dots
+        elif s.start.is_infinite:
             printset = dots, s[-1] - s.step, s[-1]
         elif s.stop.is_infinite:
             it = iter(s)
@@ -2013,16 +2065,31 @@ class LatexPrinter(Printer):
                 (self._print(i.min), self._print(i.max))
 
     def _print_Union(self, u):
-        return r" \cup ".join([self._print(i) for i in u.args])
+        prec = precedence_traditional(u)
+        args_str = [self.parenthesize(i, prec) for i in u.args]
+        return r" \cup ".join(args_str)
 
     def _print_Complement(self, u):
-        return r" \setminus ".join([self._print(i) for i in u.args])
+        prec = precedence_traditional(u)
+        args_str = [self.parenthesize(i, prec) for i in u.args]
+        return r" \setminus ".join(args_str)
 
     def _print_Intersection(self, u):
-        return r" \cap ".join([self._print(i) for i in u.args])
+        prec = precedence_traditional(u)
+        args_str = [self.parenthesize(i, prec) for i in u.args]
+        return r" \cap ".join(args_str)
 
     def _print_SymmetricDifference(self, u):
-        return r" \triangle ".join([self._print(i) for i in u.args])
+        prec = precedence_traditional(u)
+        args_str = [self.parenthesize(i, prec) for i in u.args]
+        return r" \triangle ".join(args_str)
+
+    def _print_ProductSet(self, p):
+        prec = precedence_traditional(p)
+        if len(p.sets) >= 1 and not has_variety(p.sets):
+            return self.parenthesize(p.sets[0], prec) + "^{%d}" % len(p.sets)
+        return r" \times ".join(
+            self.parenthesize(set, prec) for set in p.sets)
 
     def _print_EmptySet(self, e):
         return r"\emptyset"
@@ -2036,6 +2103,9 @@ class LatexPrinter(Printer):
     def _print_Integers(self, i):
         return r"\mathbb{Z}"
 
+    def _print_Rationals(self, i):
+        return r"\mathbb{Q}"
+
     def _print_Reals(self, i):
         return r"\mathbb{R}"
 
@@ -2043,18 +2113,17 @@ class LatexPrinter(Printer):
         return r"\mathbb{C}"
 
     def _print_ImageSet(self, s):
-        sets = s.args[1:]
-        varsets = [r"%s \in %s" % (self._print(var), self._print(setv))
-                   for var, setv in zip(s.lamda.variables, sets)]
-        return r"\left\{%s\; |\; %s\right\}" % (
-            self._print(s.lamda.expr),
-            ', '.join(varsets))
+        expr = s.lamda.expr
+        sig = s.lamda.signature
+        xys = ((self._print(x), self._print(y)) for x, y in zip(sig, s.base_sets))
+        xinys = r" , ".join(r"%s \in %s" % xy for xy in xys)
+        return r"\left\{%s\; |\; %s\right\}" % (self._print(expr), xinys)
 
     def _print_ConditionSet(self, s):
         vars_print = ', '.join([self._print(var) for var in Tuple(s.sym)])
         if s.base_set is S.UniversalSet:
             return r"\left\{%s \mid %s \right\}" % \
-                (vars_print, self._print(s.condition.as_expr()))
+                (vars_print, self._print(s.condition))
 
         return r"\left\{%s \mid %s \in %s \wedge %s \right\}" % (
             vars_print,
@@ -2269,7 +2338,10 @@ class LatexPrinter(Printer):
         return self._print(Symbol(object.name))
 
     def _print_LambertW(self, expr):
-        return r"W\left(%s\right)" % self._print(expr.args[0])
+        if len(expr.args) == 1:
+            return r"W\left(%s\right)" % self._print(expr.args[0])
+        return r"W_{%s}\left(%s\right)" % \
+            (self._print(expr.args[1]), self._print(expr.args[0]))
 
     def _print_Morphism(self, morphism):
         domain = self._print(morphism.domain)
@@ -2479,7 +2551,7 @@ def latex(expr, fold_frac_powers=False, fold_func_brackets=False,
           mat_delim="[", mat_str=None, mode="plain", mul_symbol=None,
           order=None, symbol_names=None, root_notation=True,
           mat_symbol_style="plain", imaginary_unit="i", gothic_re_im=False,
-          decimal_separator="period" ):
+          decimal_separator="period", perm_cyclic=True):
     r"""Convert the given expression to LaTeX string representation.
 
     Parameters
@@ -2680,6 +2752,7 @@ def latex(expr, fold_frac_powers=False, fold_func_brackets=False,
         'imaginary_unit': imaginary_unit,
         'gothic_re_im': gothic_re_im,
         'decimal_separator': decimal_separator,
+        'perm_cyclic' : perm_cyclic,
     }
 
     return LatexPrinter(settings).doprint(expr)

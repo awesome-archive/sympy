@@ -1,6 +1,6 @@
-from sympy.combinatorics.pc_groups import PolycyclicGroup, Collector
 from sympy.combinatorics.permutations import Permutation
 from sympy.combinatorics.named_groups import SymmetricGroup
+
 
 def test_pc_presentation():
     Groups = [SymmetricGroup(3), SymmetricGroup(4), SymmetricGroup(9).sylow_subgroup(3),
@@ -62,7 +62,7 @@ def test_exponent_vector():
         collector = PcGroup.collector
 
         pcgs = PcGroup.pcgs
-        free_group = collector.free_group
+        # free_group = collector.free_group
 
         for gen in G.generators:
             exp = collector.exponent_vector(gen)
@@ -70,3 +70,21 @@ def test_exponent_vector():
             for i in range(len(exp)):
                 g = g*pcgs[i]**exp[i] if exp[i] else g
             assert g == gen
+
+
+def test_induced_pcgs():
+    G = SymmetricGroup(9).sylow_subgroup(3)
+    PcGroup = G.polycyclic_group()
+    collector = PcGroup.collector
+    gens = [G[0], G[1]]
+    ipcgs = collector.induced_pcgs(gens)
+    order = [gen.order() for gen in ipcgs]
+    assert order == [3, 3]
+
+    G = SymmetricGroup(20).sylow_subgroup(2)
+    PcGroup = G.polycyclic_group()
+    collector = PcGroup.collector
+    gens = [G[0], G[1], G[2], G[3]]
+    ipcgs = collector.induced_pcgs(gens)
+    order = [gen.order() for gen in ipcgs]
+    assert order ==[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
