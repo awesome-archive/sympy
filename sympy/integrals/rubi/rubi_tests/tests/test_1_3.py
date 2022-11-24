@@ -9,7 +9,7 @@ if not matchpy:
 if sys.version_info[:2] < (3, 6):
     disabled = True
 
-from sympy.integrals.rubi.rubi import rubi_integrate
+from sympy.integrals.rubi.rubimain import rubi_integrate
 from sympy.functions import log, sqrt, exp, cos, sin, tan, sec, csc, cot
 from sympy.functions.elementary.hyperbolic import atanh as arctanh
 from sympy.functions.elementary.hyperbolic import asinh as arcsinh
@@ -18,16 +18,20 @@ from sympy.functions.elementary.trigonometric import atan as arctan
 from sympy.functions.elementary.trigonometric import asin as arcsin
 from sympy.functions.elementary.trigonometric import acos as arccos
 from sympy.integrals.rubi.utility_function import EllipticE, EllipticF, hypergeom, rubi_test
-from sympy import pi as Pi
-from sympy import S, hyper, I, simplify, exp_polar, symbols
-from sympy.utilities.pytest import slow, skip, ON_TRAVIS
+from sympy.core.numbers import (I, pi as Pi)
+from sympy.core.singleton import S
+from sympy.core.symbol import symbols
+from sympy.functions.elementary.exponential import exp_polar
+from sympy.functions.special.hyper import hyper
+from sympy.simplify.simplify import simplify
+from sympy.testing.pytest import slow, skip, ON_CI
 
 A, B, C, D, a, b, c, d, e, f, m, n, p, x, u = symbols('A B C D a b c d e f m n p x u', real=True, imaginary=False)
 
 @slow
 def test_1():
-    if ON_TRAVIS:
-        skip('Too slow for travis.')
+    if ON_CI:
+        skip('Too slow for CI.')
 
     test = [
         [x**S(2)*(a + b*x)*(a*c - b*c*x)**S(3), x, S(2), S(1)/S(3)*a**S(4)*c**S(3)*x**S(3) - S(1)/S(2)*a**S(3)*b*c**S(3)*x**S(4) + S(1)/S(3)*a*b**S(3)*c**S(3)*x**S(6) - S(1)/S(7)*b**S(4)*c**S(3)*x**S(7)],

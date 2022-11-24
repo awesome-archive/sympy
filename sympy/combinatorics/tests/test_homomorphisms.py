@@ -4,7 +4,7 @@ from sympy.combinatorics.homomorphisms import homomorphism, group_isomorphism, i
 from sympy.combinatorics.free_groups import free_group
 from sympy.combinatorics.fp_groups import FpGroup
 from sympy.combinatorics.named_groups import AlternatingGroup, DihedralGroup, CyclicGroup
-from sympy.utilities.pytest import raises
+from sympy.testing.pytest import raises
 
 def test_homomorphism():
     # FpGroup -> PermutationGroup
@@ -73,7 +73,7 @@ def test_isomorphisms():
     G = FpGroup(F, [c**3, d**3, (c*d)**2])
     check, T =  group_isomorphism(G, H)
     assert check
-    T(c**3*d**2) == a**3*b**2
+    assert T(c**3*d**2) == a**3*b**2
 
     # FpGroup -> PermutationGroup
     # FpGroup is converted to the equivalent isomorphic group.

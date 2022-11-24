@@ -1,14 +1,18 @@
-from __future__ import print_function, division
+from typing import Tuple as tTuple
+
+from sympy.core.basic import Basic
+from sympy.core.expr import Expr
 
 from sympy.core import Add, S
 from sympy.core.evalf import get_integer_part, PrecisionExhausted
 from sympy.core.function import Function
 from sympy.core.logic import fuzzy_or
 from sympy.core.numbers import Integer
-from sympy.core.relational import Gt, Lt, Ge, Le, Relational
+from sympy.core.relational import Gt, Lt, Ge, Le, Relational, is_eq
 from sympy.core.symbol import Symbol
 from sympy.core.sympify import _sympify
-
+from sympy.functions.elementary.complexes import im, re
+from sympy.multipledispatch import dispatch
 
 ###############################################################################
 ######################### FLOOR and CEILING FUNCTIONS #########################
@@ -16,11 +20,16 @@ from sympy.core.sympify import _sympify
 
 
 class RoundFunction(Function):
-    """The base class for rounding functions."""
+    """Abstract base class for rounding functions."""
+
+    args: tTuple[Expr]
 
     @classmethod
     def eval(cls, arg):
-        from sympy import im
+        v = cls._eval_number(arg)
+        if v is not None:
+            return v
+
         if arg.is_integer or arg.is_finite is False:
             return arg
         if arg.is_imaginary or (S.ImaginaryUnit*arg).is_real:
@@ -28,10 +37,6 @@ class RoundFunction(Function):
             if not i.has(S.ImaginaryUnit):
                 return cls(i)*S.ImaginaryUnit
             return cls(arg, evaluate=False)
-
-        v = cls._eval_number(arg)
-        if v is not None:
-            return v
 
         # Integral, numerical, symbolic part
         ipart = npart = spart = S.Zero
@@ -68,8 +73,14 @@ class RoundFunction(Function):
             return ipart
         elif spart.is_imaginary or (S.ImaginaryUnit*spart).is_real:
             return ipart + cls(im(spart), evaluate=False)*S.ImaginaryUnit
+        elif isinstance(spart, (floor, ceiling)):
+            return ipart + spart
         else:
             return ipart + cls(spart, evaluate=False)
+
+    @classmethod
+    def _eval_number(cls, arg):
+        raise NotImplementedError()
 
     def _eval_is_finite(self):
         return self.args[0].is_finite
@@ -129,18 +140,46 @@ class floor(RoundFunction):
         if arg.is_NumberSymbol:
             return arg.approximation_interval(Integer)[0]
 
-    def _eval_nseries(self, x, n, logx):
+    def _eval_as_leading_term(self, x, logx=None, cdir=0):
+        from sympy.calculus.accumulationbounds import AccumBounds
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
         r = self.subs(x, 0)
-        args = self.args[0]
-        args0 = args.subs(x, 0)
-        if args0 == r:
-            direction = (args - args0).leadterm(x)[0]
-            if direction.is_positive:
-                return r
+        if arg0 is S.NaN or isinstance(arg0, AccumBounds):
+            arg0 = arg.limit(x, 0, dir='-' if re(cdir).is_negative else '+')
+            r = floor(arg0)
+        if arg0.is_finite:
+            if arg0 == r:
+                ndir = arg.dir(x, cdir=cdir)
+                return r - 1 if ndir.is_negative else r
             else:
-                return r - 1
+                return r
+        return arg.as_leading_term(x, logx=logx, cdir=cdir)
+
+    def _eval_nseries(self, x, n, logx, cdir=0):
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
+        r = self.subs(x, 0)
+        if arg0 is S.NaN:
+            arg0 = arg.limit(x, 0, dir='-' if re(cdir).is_negative else '+')
+            r = floor(arg0)
+        if arg0.is_infinite:
+            from sympy.calculus.accumulationbounds import AccumBounds
+            from sympy.series.order import Order
+            s = arg._eval_nseries(x, n, logx, cdir)
+            o = Order(1, (x, 0)) if n <= 0 else AccumBounds(-1, 0)
+            return s + o
+        if arg0 == r:
+            ndir = arg.dir(x, cdir=cdir if cdir != 0 else 1)
+            return r - 1 if ndir.is_negative else r
         else:
             return r
+
+    def _eval_is_negative(self):
+        return self.args[0].is_negative
+
+    def _eval_is_nonnegative(self):
+        return self.args[0].is_nonnegative
 
     def _eval_rewrite_as_ceiling(self, arg, **kwargs):
         return -ceiling(-arg)
@@ -148,23 +187,67 @@ class floor(RoundFunction):
     def _eval_rewrite_as_frac(self, arg, **kwargs):
         return arg - frac(arg)
 
-    def _eval_Eq(self, other):
-        if isinstance(self, floor):
-            if (self.rewrite(ceiling) == other) or \
-                    (self.rewrite(frac) == other):
-                return S.true
-
     def __le__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] < other + 1
+            if other.is_number and other.is_real:
+                return self.args[0] < ceiling(other)
         if self.args[0] == other and other.is_real:
             return S.true
         if other is S.Infinity and self.is_finite:
             return S.true
+
         return Le(self, other, evaluate=False)
 
-    def __gt__(self, other):
+    def __ge__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] >= other
+            if other.is_number and other.is_real:
+                return self.args[0] >= ceiling(other)
         if self.args[0] == other and other.is_real:
             return S.false
+        if other is S.NegativeInfinity and self.is_finite:
+            return S.true
+
+        return Ge(self, other, evaluate=False)
+
+    def __gt__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] >= other + 1
+            if other.is_number and other.is_real:
+                return self.args[0] >= ceiling(other)
+        if self.args[0] == other and other.is_real:
+            return S.false
+        if other is S.NegativeInfinity and self.is_finite:
+            return S.true
+
         return Gt(self, other, evaluate=False)
+
+    def __lt__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] < other
+            if other.is_number and other.is_real:
+                return self.args[0] < ceiling(other)
+        if self.args[0] == other and other.is_real:
+            return S.false
+        if other is S.Infinity and self.is_finite:
+            return S.true
+
+        return Lt(self, other, evaluate=False)
+
+
+@dispatch(floor, Expr)
+def _eval_is_eq(lhs, rhs): # noqa:F811
+   return is_eq(lhs.rewrite(ceiling), rhs) or \
+        is_eq(lhs.rewrite(frac),rhs)
 
 
 class ceiling(RoundFunction):
@@ -215,16 +298,38 @@ class ceiling(RoundFunction):
         if arg.is_NumberSymbol:
             return arg.approximation_interval(Integer)[1]
 
-    def _eval_nseries(self, x, n, logx):
+    def _eval_as_leading_term(self, x, logx=None, cdir=0):
+        from sympy.calculus.accumulationbounds import AccumBounds
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
         r = self.subs(x, 0)
-        args = self.args[0]
-        args0 = args.subs(x, 0)
-        if args0 == r:
-            direction = (args - args0).leadterm(x)[0]
-            if direction.is_positive:
-                return r + 1
+        if arg0 is S.NaN or isinstance(arg0, AccumBounds):
+            arg0 = arg.limit(x, 0, dir='-' if re(cdir).is_negative else '+')
+            r = ceiling(arg0)
+        if arg0.is_finite:
+            if arg0 == r:
+                ndir = arg.dir(x, cdir=cdir)
+                return r if ndir.is_negative else r + 1
             else:
                 return r
+        return arg.as_leading_term(x, logx=logx, cdir=cdir)
+
+    def _eval_nseries(self, x, n, logx, cdir=0):
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
+        r = self.subs(x, 0)
+        if arg0 is S.NaN:
+            arg0 = arg.limit(x, 0, dir='-' if re(cdir).is_negative else '+')
+            r = ceiling(arg0)
+        if arg0.is_infinite:
+            from sympy.calculus.accumulationbounds import AccumBounds
+            from sympy.series.order import Order
+            s = arg._eval_nseries(x, n, logx, cdir)
+            o = Order(1, (x, 0)) if n <= 0 else AccumBounds(0, 1)
+            return s + o
+        if arg0 == r:
+            ndir = arg.dir(x, cdir=cdir if cdir != 0 else 1)
+            return r if ndir.is_negative else r + 1
         else:
             return r
 
@@ -234,23 +339,72 @@ class ceiling(RoundFunction):
     def _eval_rewrite_as_frac(self, arg, **kwargs):
         return arg + frac(-arg)
 
-    def _eval_Eq(self, other):
-        if isinstance(self, ceiling):
-            if (self.rewrite(floor) == other) or \
-                    (self.rewrite(frac) == other):
-                return S.true
+    def _eval_is_positive(self):
+        return self.args[0].is_positive
+
+    def _eval_is_nonpositive(self):
+        return self.args[0].is_nonpositive
 
     def __lt__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] <= other - 1
+            if other.is_number and other.is_real:
+                return self.args[0] <= floor(other)
         if self.args[0] == other and other.is_real:
             return S.false
+        if other is S.Infinity and self.is_finite:
+            return S.true
+
         return Lt(self, other, evaluate=False)
 
+    def __gt__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] > other
+            if other.is_number and other.is_real:
+                return self.args[0] > floor(other)
+        if self.args[0] == other and other.is_real:
+            return S.false
+        if other is S.NegativeInfinity and self.is_finite:
+            return S.true
+
+        return Gt(self, other, evaluate=False)
+
     def __ge__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] > other - 1
+            if other.is_number and other.is_real:
+                return self.args[0] > floor(other)
         if self.args[0] == other and other.is_real:
             return S.true
-        if other is S.NegativeInfinity and self.is_real:
+        if other is S.NegativeInfinity and self.is_finite:
             return S.true
+
         return Ge(self, other, evaluate=False)
+
+    def __le__(self, other):
+        other = S(other)
+        if self.args[0].is_real:
+            if other.is_integer:
+                return self.args[0] <= other
+            if other.is_number and other.is_real:
+                return self.args[0] <= floor(other)
+        if self.args[0] == other and other.is_real:
+            return S.false
+        if other is S.Infinity and self.is_finite:
+            return S.true
+
+        return Le(self, other, evaluate=False)
+
+
+@dispatch(ceiling, Basic)  # type:ignore
+def _eval_is_eq(lhs, rhs): # noqa:F811
+    return is_eq(lhs.rewrite(floor), rhs) or is_eq(lhs.rewrite(frac),rhs)
 
 
 class frac(Function):
@@ -264,7 +418,7 @@ class frac(Function):
     Examples
     ========
 
-    >>> from sympy import Symbol, frac, Rational, floor, ceiling, I
+    >>> from sympy import Symbol, frac, Rational, floor, I
     >>> frac(Rational(4, 3))
     1/3
     >>> frac(-Rational(4, 3))
@@ -304,10 +458,10 @@ class frac(Function):
     """
     @classmethod
     def eval(cls, arg):
-        from sympy import AccumBounds, im
+        from sympy.calculus.accumulationbounds import AccumBounds
 
         def _eval(arg):
-            if arg is S.Infinity or arg is S.NegativeInfinity:
+            if arg in (S.Infinity, S.NegativeInfinity):
                 return AccumBounds(0, 1)
             if arg.is_integer:
                 return S.Zero
@@ -343,19 +497,6 @@ class frac(Function):
 
     def _eval_rewrite_as_ceiling(self, arg, **kwargs):
         return arg + ceiling(-arg)
-
-    def _eval_Eq(self, other):
-        if isinstance(self, frac):
-            if (self.rewrite(floor) == other) or \
-                    (self.rewrite(ceiling) == other):
-                return S.true
-            # Check if other < 0
-            if other.is_extended_negative:
-                return S.false
-            # Check if other >= 1
-            res = self._value_one_or_more(other)
-            if res is not None:
-                return S.false
 
     def _eval_is_finite(self):
         return True
@@ -431,3 +572,54 @@ class frac(Function):
                     return S.true
             if other.is_integer and other.is_positive:
                 return S.true
+
+    def _eval_as_leading_term(self, x, logx=None, cdir=0):
+        from sympy.calculus.accumulationbounds import AccumBounds
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
+        r = self.subs(x, 0)
+
+        if arg0.is_finite:
+            if r.is_zero:
+                ndir = arg.dir(x, cdir=cdir)
+                if ndir.is_negative:
+                    return S.One
+                return (arg - arg0).as_leading_term(x, logx=logx, cdir=cdir)
+            else:
+                return r
+        elif arg0 in (S.ComplexInfinity, S.Infinity, S.NegativeInfinity):
+            return AccumBounds(0, 1)
+        return arg.as_leading_term(x, logx=logx, cdir=cdir)
+
+    def _eval_nseries(self, x, n, logx, cdir=0):
+        from sympy.series.order import Order
+        arg = self.args[0]
+        arg0 = arg.subs(x, 0)
+        r = self.subs(x, 0)
+
+        if arg0.is_infinite:
+            from sympy.calculus.accumulationbounds import AccumBounds
+            o = Order(1, (x, 0)) if n <= 0 else AccumBounds(0, 1) + Order(x**n, (x, 0))
+            return o
+        else:
+            res = (arg - arg0)._eval_nseries(x, n, logx=logx, cdir=cdir)
+            if r.is_zero:
+                ndir = arg.dir(x, cdir=cdir)
+                res += S.One if ndir.is_negative else S.Zero
+            else:
+                res += r
+            return res
+
+
+@dispatch(frac, Basic)  # type:ignore
+def _eval_is_eq(lhs, rhs): # noqa:F811
+    if (lhs.rewrite(floor) == rhs) or \
+        (lhs.rewrite(ceiling) == rhs):
+        return True
+    # Check if other < 0
+    if rhs.is_extended_negative:
+        return False
+    # Check if other >= 1
+    res = lhs._value_one_or_more(rhs)
+    if res is not None:
+        return False

@@ -7,14 +7,15 @@ from sympy.functions import (arg, atan2, bernoulli, beta, ceiling, chebyshevu,
                              factorial, floor, harmonic, Heaviside, im,
                              laguerre, LambertW, log, Max, Min, Piecewise,
                              polylog, re, RisingFactorial, sign, sinc, sqrt,
-                             zeta, binomial, legendre)
+                             zeta, binomial, legendre, dirichlet_eta,
+                             riemann_xi)
 from sympy.functions import (sin, cos, tan, cot, sec, csc, asin, acos, acot,
                              atan, asec, acsc, sinh, cosh, tanh, coth, csch,
                              sech, asinh, acosh, atanh, acoth, asech, acsch)
-from sympy.utilities.pytest import raises, XFAIL
+from sympy.testing.pytest import raises, XFAIL
 from sympy.utilities.lambdify import implemented_function
 from sympy.matrices import (eye, Matrix, MatrixSymbol, Identity,
-                            HadamardProduct, SparseMatrix)
+                            HadamardProduct, SparseMatrix, HadamardPower)
 from sympy.functions.special.bessel import (jn, yn, besselj, bessely, besseli,
                                             besselk, hankel1, hankel2, airyai,
                                             airybi, airyaiprime, airybiprime)
@@ -24,9 +25,8 @@ from sympy.functions.special.gamma_functions import (gamma, lowergamma,
 from sympy.functions.special.error_functions import (Chi, Ci, erf, erfc, erfi,
                                                      erfcinv, erfinv, fresnelc,
                                                      fresnels, li, Shi, Si, Li,
-                                                     erf2)
-from sympy import octave_code
-from sympy import octave_code as mcode
+                                                     erf2, Ei)
+from sympy.printing.octave import octave_code, octave_code as mcode
 
 x, y, z = symbols('x,y,z')
 
@@ -90,7 +90,7 @@ def test_Function_change_name():
     assert mcode(RisingFactorial(x, y)) == "pochhammer(x, y)"
     assert mcode(DiracDelta(x)) == "dirac(x)"
     assert mcode(DiracDelta(x, 3)) == "dirac(3, x)"
-    assert mcode(Heaviside(x)) == "heaviside(x)"
+    assert mcode(Heaviside(x)) == "heaviside(x, 1/2)"
     assert mcode(Heaviside(x, y)) == "heaviside(x, y)"
     assert mcode(binomial(x, y)) == "bincoeff(x, y)"
     assert mcode(Mod(x, y)) == "mod(x, y)"
@@ -259,7 +259,7 @@ def test_MatrixSymbol():
     assert mcode(A*(B + 3*Identity(n))) == "A*(3*eye(n) + B)"
     assert mcode(A**(x**2)) == "A^(x.^2)"
     assert mcode(A**3) == "A^3"
-    assert mcode(A**(S.Half)) == "A^(1/2)"
+    assert mcode(A**S.Half) == "A^(1/2)"
 
 
 def test_MatrixSolve():
@@ -392,7 +392,7 @@ def test_octave_not_supported():
 
 
 def test_octave_not_supported_not_on_whitelist():
-    from sympy import assoc_laguerre
+    from sympy.functions.special.polynomials import assoc_laguerre
     assert mcode(assoc_laguerre(x, y, z)) == (
         "% Not supported in Octave:\n"
         "% assoc_laguerre\n"
@@ -429,18 +429,24 @@ def test_trick_indent_with_end_else_words():
         "end")
 
 
-def test_haramard():
+def test_hadamard():
     A = MatrixSymbol('A', 3, 3)
     B = MatrixSymbol('B', 3, 3)
     v = MatrixSymbol('v', 3, 1)
     h = MatrixSymbol('h', 1, 3)
     C = HadamardProduct(A, B)
+    n = Symbol('n')
     assert mcode(C) == "A.*B"
     assert mcode(C*v) == "(A.*B)*v"
     assert mcode(h*C*v) == "h*(A.*B)*v"
     assert mcode(C*A) == "(A.*B)*A"
     # mixing Hadamard and scalar strange b/c we vectorize scalars
     assert mcode(C*x*y) == "(x.*y)*(A.*B)"
+
+    # Testing HadamardPower:
+    assert mcode(HadamardPower(A, n)) == "A.**n"
+    assert mcode(HadamardPower(A, 1+n)) == "A.**(n + 1)"
+    assert mcode(HadamardPower(A*B.T, 1+n)) == "(A*B.T).**(n + 1)"
 
 
 def test_sparse():
@@ -457,7 +463,7 @@ def test_sparse():
 
 def test_sinc():
     assert mcode(sinc(x)) == 'sinc(x/pi)'
-    assert mcode(sinc((x + 3))) == 'sinc((x + 3)/pi)'
+    assert mcode(sinc(x + 3)) == 'sinc((x + 3)/pi)'
     assert mcode(sinc(pi*(x + 3))) == 'sinc(x + 3)'
 
 
@@ -487,6 +493,11 @@ def test_specfun():
     assert octave_code(yn(n, x)) == 'sqrt(2)*sqrt(pi)*sqrt(1./x).*bessely(n + 1/2, x)/2'
     assert octave_code(LambertW(x)) == 'lambertw(x)'
     assert octave_code(LambertW(x, n)) == 'lambertw(n, x)'
+
+    # Automatic rewrite
+    assert octave_code(Ei(x)) == 'logint(exp(x))'
+    assert octave_code(dirichlet_eta(x)) == '((x == 1).*(log(2)) + (~(x == 1)).*((1 - 2.^(1 - x)).*zeta(x)))'
+    assert octave_code(riemann_xi(x)) == 'pi.^(-x/2).*x.*(x - 1).*gamma(x/2).*zeta(x)/2'
 
 
 def test_MatrixElement_printing():

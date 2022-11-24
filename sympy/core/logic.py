@@ -3,12 +3,15 @@
 NOTE
 ----
 
-at present this is mainly needed for facts.py , feel free however to improve
+at present this is mainly needed for facts.py, feel free however to improve
 this stuff for general purpose.
 """
-from __future__ import print_function, division
 
-from sympy.core.compatibility import range, string_types
+from __future__ import annotations
+from typing import Optional
+
+# Type of a fuzzy bool
+FuzzyBool = Optional[bool]
 
 
 def _torf(args):
@@ -186,13 +189,41 @@ def fuzzy_or(args):
     None
 
     """
-    return fuzzy_not(fuzzy_and(fuzzy_not(i) for i in args))
+    rv = False
+    for ai in args:
+        ai = fuzzy_bool(ai)
+        if ai is True:
+            return True
+        if rv is False:  # this will stop updating if a None is ever trapped
+            rv = ai
+    return rv
 
 
-class Logic(object):
+def fuzzy_xor(args):
+    """Return None if any element of args is not True or False, else
+    True (if there are an odd number of True elements), else False."""
+    t = f = 0
+    for a in args:
+        ai = fuzzy_bool(a)
+        if ai:
+            t += 1
+        elif ai is False:
+            f += 1
+        else:
+            return
+    return t % 2 == 1
+
+
+def fuzzy_nand(args):
+    """Return False if all args are True, True if they are all False,
+    else None."""
+    return fuzzy_not(fuzzy_and(args))
+
+
+class Logic:
     """Logical expression"""
     # {} 'op' -> LogicClass
-    op_2class = {}
+    op_2class: dict[str, type[Logic]] = {}
 
     def __new__(cls, *args):
         obj = object.__new__(cls)
@@ -344,8 +375,7 @@ class And(AndOr_Base):
     def expand(self):
 
         # first locate Or
-        for i in range(len(self.args)):
-            arg = self.args[i]
+        for i, arg in enumerate(self.args):
             if isinstance(arg, Or):
                 arest = self.args[:i] + self.args[i + 1:]
 
@@ -371,7 +401,7 @@ class Or(AndOr_Base):
 class Not(Logic):
 
     def __new__(cls, arg):
-        if isinstance(arg, string_types):
+        if isinstance(arg, str):
             return Logic.__new__(cls, arg)
 
         elif isinstance(arg, bool):

@@ -1,9 +1,15 @@
-from sympy import (Eq, Matrix, pi, sin, sqrt, Symbol, Integral, Piecewise,
-    symbols, Float, I, Rational)
+from sympy.core.numbers import (Float, I, Rational, pi)
+from sympy.core.relational import Eq
+from sympy.core.symbol import (Symbol, symbols)
+from sympy.functions.elementary.miscellaneous import sqrt
+from sympy.functions.elementary.piecewise import Piecewise
+from sympy.functions.elementary.trigonometric import sin
+from sympy.integrals.integrals import Integral
+from sympy.matrices.dense import Matrix
 from mpmath import mnorm, mpf
 from sympy.solvers import nsolve
 from sympy.utilities.lambdify import lambdify
-from sympy.utilities.pytest import raises, XFAIL
+from sympy.testing.pytest import raises, XFAIL
 from sympy.utilities.decorator import conserve_mpmath_dps
 
 @XFAIL
@@ -64,14 +70,12 @@ def test_nsolve():
         mpf('0.31883011387318591')) < 1e-15
 
 
-
 def test_issue_6408():
     x = Symbol('x')
     assert nsolve(Piecewise((x, x < 1), (x**2, True)), x, 2) == 0.0
 
 
-@XFAIL
-def test_issue_6408_fail():
+def test_issue_6408_integral():
     x, y = symbols('x y')
     assert nsolve(Integral(x*y, (x, 0, 5)), y, 2) == 0.0
 

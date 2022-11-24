@@ -8,14 +8,12 @@ Features:
 References:
   - https://en.wikipedia.org/wiki/DPLL_algorithm
 """
-from __future__ import print_function, division
 
 from collections import defaultdict
 from heapq import heappush, heappop
 
-from sympy.core.compatibility import range
-from sympy import default_sort_key, ordered
-from sympy.logic.boolalg import conjuncts, to_cnf, to_int_repr, _find_predicates
+from sympy.core.sorting import ordered
+from sympy.assumptions.cnf import EncodedCNF
 
 
 def dpll_satisfiable(expr, all_models=False):
@@ -35,16 +33,18 @@ def dpll_satisfiable(expr, all_models=False):
     False
 
     """
-    clauses = conjuncts(to_cnf(expr))
-    if False in clauses:
+    if not isinstance(expr, EncodedCNF):
+        exprs = EncodedCNF()
+        exprs.add_prop(expr)
+        expr = exprs
+
+    # Return UNSAT when False (encoded as 0) is present in the CNF
+    if {0} in expr.data:
         if all_models:
             return (f for f in [False])
         return False
-    symbols = sorted(_find_predicates(expr), key=default_sort_key)
-    symbols_int_repr = range(1, len(symbols) + 1)
-    clauses_int_repr = to_int_repr(clauses, symbols)
 
-    solver = SATSolver(clauses_int_repr, symbols_int_repr, set(), symbols)
+    solver = SATSolver(expr.data, expr.variables, set(), expr.symbols)
     models = solver._find_model()
 
     if all_models:
@@ -72,7 +72,7 @@ def _all_models(models):
             yield False
 
 
-class SATSolver(object):
+class SATSolver:
     """
     Class for representing a SAT solver capable of
      finding a model to a boolean theory in conjunctive
@@ -143,21 +143,19 @@ class SATSolver(object):
         - Non-unit clauses have their first and last literals set as sentinels.
         - The number of clauses a literal appears in is computed.
         """
-        self.clauses = []
-        for cls in clauses:
-            self.clauses.append(list(cls))
+        self.clauses = [list(clause) for clause in clauses]
 
-        for i in range(len(self.clauses)):
+        for i, clause in enumerate(self.clauses):
 
             # Handle the unit clauses
-            if 1 == len(self.clauses[i]):
-                self._unit_prop_queue.append(self.clauses[i][0])
+            if 1 == len(clause):
+                self._unit_prop_queue.append(clause[0])
                 continue
 
-            self.sentinels[self.clauses[i][0]].add(i)
-            self.sentinels[self.clauses[i][-1]].add(i)
+            self.sentinels[clause[0]].add(i)
+            self.sentinels[clause[-1]].add(i)
 
-            for lit in self.clauses[i]:
+            for lit in clause:
                 self.occurrence_count[lit] += 1
 
     def _find_model(self):
@@ -214,8 +212,8 @@ class SATSolver(object):
 
                 # Stopping condition for a satisfying theory
                 if 0 == lit:
-                    yield dict((self.symbols[abs(lit) - 1],
-                                lit > 0) for lit in self.var_settings)
+                    yield {self.symbols[abs(lit) - 1]:
+                                lit > 0 for lit in self.var_settings}
                     while self._current_level.flipped:
                         self._undo()
                     if len(self.levels) == 1:
@@ -649,7 +647,7 @@ class SATSolver(object):
         pass
 
 
-class Level(object):
+class Level:
     """
     Represents a single level in the DPLL algorithm, and contains
     enough information for a sound backtracking procedure.

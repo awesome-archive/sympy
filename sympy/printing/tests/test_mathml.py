@@ -1,37 +1,63 @@
-from sympy import diff, Integral, Limit, sin, Symbol, Integer, Rational, cos, \
-    tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, E, I, oo, \
-    pi, GoldenRatio, EulerGamma, Sum, Eq, Ne, Ge, Lt, Float, Matrix, Basic, \
-    S, MatrixSymbol, Function, Derivative, log, true, false, Range, Min, Max, \
-    Lambda, IndexedBase, symbols, zoo, elliptic_f, elliptic_e, elliptic_pi, Ei, \
-    expint, jacobi, gegenbauer, chebyshevt, chebyshevu, legendre, assoc_legendre, \
-    laguerre, assoc_laguerre, hermite, euler, stieltjes, mathieuc, mathieus, \
-    mathieucprime, mathieusprime, TribonacciConstant, Contains, LambertW, \
-    cot, coth, acot, acoth, csc, acsc, csch, acsch, sec, asec, sech, asech
-
-from sympy import elliptic_k, totient, reduced_totient, primenu, primeomega, \
-    fresnelc, fresnels, Heaviside
-from sympy.calculus.util import AccumBounds
+from sympy.calculus.accumulationbounds import AccumBounds
+from sympy.concrete.summations import Sum
+from sympy.core.basic import Basic
 from sympy.core.containers import Tuple
-from sympy.functions.combinatorial.factorials import factorial, factorial2, \
-    binomial
-from sympy.functions.combinatorial.numbers import bernoulli, bell, lucas, \
-    fibonacci, tribonacci, catalan
-from sympy.functions.elementary.complexes import re, im, Abs, conjugate
-from sympy.functions.elementary.exponential import exp
-from sympy.functions.elementary.integers import floor, ceiling
-from sympy.functions.special.gamma_functions import gamma, lowergamma, uppergamma
+from sympy.core.function import Derivative, Lambda, diff, Function
+from sympy.core.numbers import (zoo, Float, Integer, I, oo, pi, E,
+    Rational)
+from sympy.core.relational import Lt, Ge, Ne, Eq
+from sympy.core.singleton import S
+from sympy.core.symbol import symbols, Symbol
+from sympy.core.sympify import sympify
+from sympy.functions.combinatorial.factorials import (factorial2,
+    binomial, factorial)
+from sympy.functions.combinatorial.numbers import (lucas, bell,
+    catalan, euler, tribonacci, fibonacci, bernoulli)
+from sympy.functions.elementary.complexes import re, im, conjugate, Abs
+from sympy.functions.elementary.exponential import exp, LambertW, log
+from sympy.functions.elementary.hyperbolic import (tanh, acoth, atanh,
+    coth, asinh, acsch, asech, acosh, csch, sinh, cosh, sech)
+from sympy.functions.elementary.integers import ceiling, floor
+from sympy.functions.elementary.miscellaneous import Max, Min
+from sympy.functions.elementary.trigonometric import (csc, sec, tan,
+    atan, sin, asec, cot, cos, acot, acsc, asin, acos)
+from sympy.functions.special.delta_functions import Heaviside
+from sympy.functions.special.elliptic_integrals import (elliptic_pi,
+    elliptic_f, elliptic_k, elliptic_e)
+from sympy.functions.special.error_functions import (fresnelc,
+    fresnels, Ei, expint)
+from sympy.functions.special.gamma_functions import (gamma, uppergamma,
+    lowergamma)
+from sympy.functions.special.mathieu_functions import (mathieusprime,
+    mathieus, mathieucprime, mathieuc)
+from sympy.functions.special.polynomials import (jacobi, chebyshevu,
+    chebyshevt, hermite, assoc_legendre, gegenbauer, assoc_laguerre,
+    legendre, laguerre)
 from sympy.functions.special.singularity_functions import SingularityFunction
-from sympy.functions.special.zeta_functions import polylog, lerchphi, zeta, dirichlet_eta
-from sympy.logic.boolalg import And, Or, Implies, Equivalent, Xor, Not
+from sympy.functions.special.zeta_functions import (polylog, stieltjes,
+    lerchphi, dirichlet_eta, zeta)
+from sympy.integrals.integrals import Integral
+from sympy.logic.boolalg import (Xor, Or, false, true, And, Equivalent,
+    Implies, Not)
+from sympy.matrices.dense import Matrix
 from sympy.matrices.expressions.determinant import Determinant
-from sympy.physics.quantum import ComplexSpace, HilbertSpace, FockSpace, hbar, Dagger
-from sympy.printing.mathml import mathml, MathMLContentPrinter, \
-    MathMLPresentationPrinter, MathMLPrinter
-from sympy.sets.sets import FiniteSet, Union, Intersection, Complement, \
-    SymmetricDifference, Interval, EmptySet
+from sympy.matrices.expressions.matexpr import MatrixSymbol
+from sympy.ntheory.factor_ import (totient, reduced_totient, primenu,
+    primeomega)
+from sympy.physics.quantum import (ComplexSpace, FockSpace, hbar,
+    HilbertSpace, Dagger)
+from sympy.printing.mathml import (MathMLPresentationPrinter,
+    MathMLPrinter, MathMLContentPrinter, mathml)
+from sympy.series.limits import Limit
+from sympy.sets.contains import Contains
+from sympy.sets.fancysets import Range
+from sympy.sets.sets import (Interval, Union, SymmetricDifference,
+    Complement, FiniteSet, Intersection, ProductSet)
 from sympy.stats.rv import RandomSymbol
-from sympy.utilities.pytest import raises
-from sympy.vector import CoordSys3D, Cross, Curl, Dot, Divergence, Gradient, Laplacian
+from sympy.tensor.indexed import IndexedBase
+from sympy.vector import (Divergence, CoordSys3D, Cross, Curl, Dot,
+    Laplacian, Gradient)
+from sympy.testing.pytest import raises
 
 x, y, z, a, b, c, d, e, n = symbols('x:z a:e n')
 mp = MathMLContentPrinter()
@@ -214,12 +240,13 @@ def test_content_mathml_constants():
     mml = mp._print(pi)
     assert mml.nodeName == 'pi'
 
-    assert mathml(GoldenRatio) == '<cn>&#966;</cn>'
-
-    mml = mathml(EulerGamma)
+    assert mathml(hbar) == '<hbar/>'
+    assert mathml(S.TribonacciConstant) == '<tribonacciconstant/>'
+    assert mathml(S.GoldenRatio) == '<cn>&#966;</cn>'
+    mml = mathml(S.EulerGamma)
     assert mml == '<eulergamma/>'
 
-    mml = mathml(EmptySet())
+    mml = mathml(S.EmptySet)
     assert mml == '<emptyset/>'
 
     mml = mathml(S.true)
@@ -450,7 +477,7 @@ def test_content_symbol():
 def test_content_mathml_greek():
     mml = mp._print(Symbol('alpha'))
     assert mml.nodeName == 'ci'
-    assert mml.childNodes[0].nodeValue == u'\N{GREEK SMALL LETTER ALPHA}'
+    assert mml.childNodes[0].nodeValue == '\N{GREEK SMALL LETTER ALPHA}'
 
     assert mp.doprint(Symbol('alpha')) == '<ci>&#945;</ci>'
     assert mp.doprint(Symbol('beta')) == '<ci>&#946;</ci>'
@@ -540,6 +567,106 @@ def test_content_mathml_logic():
     assert mathml(Xor(x, y)) == '<apply><xor/><ci>x</ci><ci>y</ci></apply>'
     assert mathml(Implies(x, y)) == '<apply><implies/><ci>x</ci><ci>y</ci></apply>'
     assert mathml(Not(x)) == '<apply><not/><ci>x</ci></apply>'
+
+
+def test_content_finite_sets():
+    assert mathml(FiniteSet(a)) == '<set><ci>a</ci></set>'
+    assert mathml(FiniteSet(a, b)) == '<set><ci>a</ci><ci>b</ci></set>'
+    assert mathml(FiniteSet(FiniteSet(a, b), c)) == \
+        '<set><ci>c</ci><set><ci>a</ci><ci>b</ci></set></set>'
+
+    A = FiniteSet(a)
+    B = FiniteSet(b)
+    C = FiniteSet(c)
+    D = FiniteSet(d)
+
+    U1 = Union(A, B, evaluate=False)
+    U2 = Union(C, D, evaluate=False)
+    I1 = Intersection(A, B, evaluate=False)
+    I2 = Intersection(C, D, evaluate=False)
+    C1 = Complement(A, B, evaluate=False)
+    C2 = Complement(C, D, evaluate=False)
+    # XXX ProductSet does not support evaluate keyword
+    P1 = ProductSet(A, B)
+    P2 = ProductSet(C, D)
+
+    assert mathml(U1) == \
+        '<apply><union/><set><ci>a</ci></set><set><ci>b</ci></set></apply>'
+    assert mathml(I1) == \
+        '<apply><intersect/><set><ci>a</ci></set><set><ci>b</ci></set>' \
+        '</apply>'
+    assert mathml(C1) == \
+        '<apply><setdiff/><set><ci>a</ci></set><set><ci>b</ci></set></apply>'
+    assert mathml(P1) == \
+        '<apply><cartesianproduct/><set><ci>a</ci></set><set><ci>b</ci>' \
+        '</set></apply>'
+
+    assert mathml(Intersection(A, U2, evaluate=False)) == \
+        '<apply><intersect/><set><ci>a</ci></set><apply><union/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+    assert mathml(Intersection(U1, U2, evaluate=False)) == \
+        '<apply><intersect/><apply><union/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><union/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+
+    # XXX Does the parenthesis appear correctly for these examples in mathjax?
+    assert mathml(Intersection(C1, C2, evaluate=False)) == \
+        '<apply><intersect/><apply><setdiff/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><setdiff/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(Intersection(P1, P2, evaluate=False)) == \
+        '<apply><intersect/><apply><cartesianproduct/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><cartesianproduct/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+
+    assert mathml(Union(A, I2, evaluate=False)) == \
+        '<apply><union/><set><ci>a</ci></set><apply><intersect/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+    assert mathml(Union(I1, I2, evaluate=False)) == \
+        '<apply><union/><apply><intersect/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><intersect/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(Union(C1, C2, evaluate=False)) == \
+        '<apply><union/><apply><setdiff/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><setdiff/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(Union(P1, P2, evaluate=False)) == \
+        '<apply><union/><apply><cartesianproduct/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><cartesianproduct/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+
+    assert mathml(Complement(A, C2, evaluate=False)) == \
+        '<apply><setdiff/><set><ci>a</ci></set><apply><setdiff/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+    assert mathml(Complement(U1, U2, evaluate=False)) == \
+        '<apply><setdiff/><apply><union/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><union/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(Complement(I1, I2, evaluate=False)) == \
+        '<apply><setdiff/><apply><intersect/><set><ci>a</ci></set><set>' \
+        '<ci>b</ci></set></apply><apply><intersect/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(Complement(P1, P2, evaluate=False)) == \
+        '<apply><setdiff/><apply><cartesianproduct/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><cartesianproduct/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+
+    assert mathml(ProductSet(A, P2)) == \
+        '<apply><cartesianproduct/><set><ci>a</ci></set>' \
+        '<apply><cartesianproduct/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(ProductSet(U1, U2)) == \
+        '<apply><cartesianproduct/><apply><union/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><union/><set><ci>c</ci></set>' \
+        '<set><ci>d</ci></set></apply></apply>'
+    assert mathml(ProductSet(I1, I2)) == \
+        '<apply><cartesianproduct/><apply><intersect/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><intersect/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
+    assert mathml(ProductSet(C1, C2)) == \
+        '<apply><cartesianproduct/><apply><setdiff/><set><ci>a</ci></set>' \
+        '<set><ci>b</ci></set></apply><apply><setdiff/><set>' \
+        '<ci>c</ci></set><set><ci>d</ci></set></apply></apply>'
 
 
 def test_presentation_printmethod():
@@ -760,7 +887,13 @@ def test_presentation_mathml_constants():
     mml = mpp._print(pi)
     assert mml.childNodes[0].nodeValue == '&pi;'
 
-    assert mathml(GoldenRatio, printer='presentation') == '<mi>&#x3A6;</mi>'
+    assert mathml(hbar, printer='presentation') == '<mi>&#x210F;</mi>'
+    assert mathml(S.TribonacciConstant, printer='presentation'
+        ) == '<mi>TribonacciConstant</mi>'
+    assert mathml(S.EulerGamma, printer='presentation'
+        ) == '<mi>&#x3B3;</mi>'
+    assert mathml(S.GoldenRatio, printer='presentation'
+        ) == '<mi>&#x3A6;</mi>'
 
     assert mathml(zoo, printer='presentation') == \
         '<mover><mo>&#x221E;</mo><mo>~</mo></mover>'
@@ -936,7 +1069,7 @@ def test_presentation_symbol():
 def test_presentation_mathml_greek():
     mml = mpp._print(Symbol('alpha'))
     assert mml.nodeName == 'mi'
-    assert mml.childNodes[0].nodeValue == u'\N{GREEK SMALL LETTER ALPHA}'
+    assert mml.childNodes[0].nodeValue == '\N{GREEK SMALL LETTER ALPHA}'
 
     assert mpp.doprint(Symbol('alpha')) == '<mi>&#945;</mi>'
     assert mpp.doprint(Symbol('beta')) == '<mi>&#946;</mi>'
@@ -1091,7 +1224,7 @@ def test_toprettyxml_hooking():
 
 
 def test_print_domains():
-    from sympy import Complexes, Integers, Naturals, Naturals0, Reals
+    from sympy.sets import Integers, Naturals, Naturals0, Reals, Complexes
 
     assert mpp.doprint(Complexes) == '<mi mathvariant="normal">&#x2102;</mi>'
     assert mpp.doprint(Integers) == '<mi mathvariant="normal">&#x2124;</mi>'
@@ -1116,12 +1249,12 @@ def test_print_AssocOp():
         identity = 0
 
     expr = TestAssocOp(1, 2)
-    mpp.doprint(expr) == \
-        '<mrow><mi>testassocop</mi><mn>2</mn><mn>1</mn></mrow>'
+    assert mpp.doprint(expr) == \
+        '<mrow><mi>testassocop</mi><mn>1</mn><mn>2</mn></mrow>'
 
 
 def test_print_basic():
-    expr = Basic(1, 2)
+    expr = Basic(S(1), S(2))
     assert mpp.doprint(expr) == \
         '<mrow><mi>basic</mi><mfenced><mn>1</mn><mn>2</mn></mfenced></mrow>'
     assert mp.doprint(expr) == '<basic><cn>1</cn><cn>2</cn></basic>'
@@ -1198,7 +1331,7 @@ def test_print_LambertW():
 
 
 def test_print_EmptySet():
-    assert mpp.doprint(EmptySet()) == '<mo>&#x2205;</mo>'
+    assert mpp.doprint(S.EmptySet) == '<mo>&#x2205;</mo>'
 
 
 def test_print_UniversalSet():
@@ -1213,8 +1346,9 @@ def test_print_spaces():
 
 def test_print_constants():
     assert mpp.doprint(hbar) == '<mi>&#x210F;</mi>'
-    assert mpp.doprint(TribonacciConstant) == '<mi>TribonacciConstant</mi>'
-    assert mpp.doprint(EulerGamma) == '<mi>&#x3B3;</mi>'
+    assert mpp.doprint(S.TribonacciConstant) == '<mi>TribonacciConstant</mi>'
+    assert mpp.doprint(S.GoldenRatio) == '<mi>&#x3A6;</mi>'
+    assert mpp.doprint(S.EulerGamma) == '<mi>&#x3B3;</mi>'
 
 
 def test_print_Contains():
@@ -1230,22 +1364,61 @@ def test_print_SetOp():
     f1 = FiniteSet(x, 1, 3)
     f2 = FiniteSet(y, 2, 4)
 
-    assert mpp.doprint(Union(f1, f2, evaluate=False)) == \
+    prntr = lambda x: mathml(x, printer='presentation')
+
+    assert prntr(Union(f1, f2, evaluate=False)) == \
     '<mrow><mfenced close="}" open="{"><mn>1</mn><mn>3</mn><mi>x</mi>'\
     '</mfenced><mo>&#x222A;</mo><mfenced close="}" open="{"><mn>2</mn>'\
     '<mn>4</mn><mi>y</mi></mfenced></mrow>'
-    assert mpp.doprint(Intersection(f1, f2, evaluate=False)) == \
+    assert prntr(Intersection(f1, f2, evaluate=False)) == \
     '<mrow><mfenced close="}" open="{"><mn>1</mn><mn>3</mn><mi>x</mi>'\
     '</mfenced><mo>&#x2229;</mo><mfenced close="}" open="{"><mn>2</mn>'\
     '<mn>4</mn><mi>y</mi></mfenced></mrow>'
-    assert mpp.doprint(Complement(f1, f2, evaluate=False)) == \
+    assert prntr(Complement(f1, f2, evaluate=False)) == \
     '<mrow><mfenced close="}" open="{"><mn>1</mn><mn>3</mn><mi>x</mi>'\
     '</mfenced><mo>&#x2216;</mo><mfenced close="}" open="{"><mn>2</mn>'\
     '<mn>4</mn><mi>y</mi></mfenced></mrow>'
-    assert mpp.doprint(SymmetricDifference(f1, f2, evaluate=False)) == \
+    assert prntr(SymmetricDifference(f1, f2, evaluate=False)) == \
     '<mrow><mfenced close="}" open="{"><mn>1</mn><mn>3</mn><mi>x</mi>'\
     '</mfenced><mo>&#x2206;</mo><mfenced close="}" open="{"><mn>2</mn>'\
     '<mn>4</mn><mi>y</mi></mfenced></mrow>'
+
+    A = FiniteSet(a)
+    C = FiniteSet(c)
+    D = FiniteSet(d)
+
+    U1 = Union(C, D, evaluate=False)
+    I1 = Intersection(C, D, evaluate=False)
+    C1 = Complement(C, D, evaluate=False)
+    D1 = SymmetricDifference(C, D, evaluate=False)
+    # XXX ProductSet does not support evaluate keyword
+    P1 = ProductSet(C, D)
+
+    assert prntr(Union(A, I1, evaluate=False)) == \
+        '<mrow><mfenced close="}" open="{"><mi>a</mi></mfenced>' \
+        '<mo>&#x222A;</mo><mfenced><mrow><mfenced close="}" open="{">' \
+        '<mi>c</mi></mfenced><mo>&#x2229;</mo><mfenced close="}" open="{">' \
+        '<mi>d</mi></mfenced></mrow></mfenced></mrow>'
+    assert prntr(Intersection(A, C1, evaluate=False)) == \
+        '<mrow><mfenced close="}" open="{"><mi>a</mi></mfenced>' \
+        '<mo>&#x2229;</mo><mfenced><mrow><mfenced close="}" open="{">' \
+        '<mi>c</mi></mfenced><mo>&#x2216;</mo><mfenced close="}" open="{">' \
+        '<mi>d</mi></mfenced></mrow></mfenced></mrow>'
+    assert prntr(Complement(A, D1, evaluate=False)) == \
+        '<mrow><mfenced close="}" open="{"><mi>a</mi></mfenced>' \
+        '<mo>&#x2216;</mo><mfenced><mrow><mfenced close="}" open="{">' \
+        '<mi>c</mi></mfenced><mo>&#x2206;</mo><mfenced close="}" open="{">' \
+        '<mi>d</mi></mfenced></mrow></mfenced></mrow>'
+    assert prntr(SymmetricDifference(A, P1, evaluate=False)) == \
+        '<mrow><mfenced close="}" open="{"><mi>a</mi></mfenced>' \
+        '<mo>&#x2206;</mo><mfenced><mrow><mfenced close="}" open="{">' \
+        '<mi>c</mi></mfenced><mo>&#x00d7;</mo><mfenced close="}" open="{">' \
+        '<mi>d</mi></mfenced></mrow></mfenced></mrow>'
+    assert prntr(ProductSet(A, U1)) == \
+        '<mrow><mfenced close="}" open="{"><mi>a</mi></mfenced>' \
+        '<mo>&#x00d7;</mo><mfenced><mrow><mfenced close="}" open="{">' \
+        '<mi>c</mi></mfenced><mo>&#x222A;</mo><mfenced close="}" open="{">' \
+        '<mi>d</mi></mfenced></mrow></mfenced></mrow>'
 
 
 def test_print_logic():
@@ -1283,17 +1456,17 @@ def test_print_logic():
 
 
 def test_root_notation_print():
-    assert mathml(x**(S(1)/3), printer='presentation') == \
+    assert mathml(x**(S.One/3), printer='presentation') == \
         '<mroot><mi>x</mi><mn>3</mn></mroot>'
-    assert mathml(x**(S(1)/3), printer='presentation', root_notation=False) ==\
+    assert mathml(x**(S.One/3), printer='presentation', root_notation=False) ==\
         '<msup><mi>x</mi><mfrac><mn>1</mn><mn>3</mn></mfrac></msup>'
-    assert mathml(x**(S(1)/3), printer='content') == \
-        '<apply><root/><degree><ci>3</ci></degree><ci>x</ci></apply>'
-    assert mathml(x**(S(1)/3), printer='content', root_notation=False) == \
+    assert mathml(x**(S.One/3), printer='content') == \
+        '<apply><root/><degree><cn>3</cn></degree><ci>x</ci></apply>'
+    assert mathml(x**(S.One/3), printer='content', root_notation=False) == \
         '<apply><power/><ci>x</ci><apply><divide/><cn>1</cn><cn>3</cn></apply></apply>'
-    assert mathml(x**(-S(1)/3), printer='presentation') == \
+    assert mathml(x**(Rational(-1, 3)), printer='presentation') == \
         '<mfrac><mn>1</mn><mroot><mi>x</mi><mn>3</mn></mroot></mfrac>'
-    assert mathml(x**(-S(1)/3), printer='presentation', root_notation=False) \
+    assert mathml(x**(Rational(-1, 3)), printer='presentation', root_notation=False) \
         == '<mfrac><mn>1</mn><msup><mi>x</mi><mfrac><mn>1</mn><mn>3</mn></mfrac></msup></mfrac>'
 
 
@@ -1390,7 +1563,7 @@ def test_print_different_functions():
     assert mpp.doprint(primeomega(x)) == '<mrow><mi>&#x3A9;</mi><mfenced><mi>x</mi></mfenced></mrow>'
     assert mpp.doprint(fresnels(x)) == '<mrow><mi>S</mi><mfenced><mi>x</mi></mfenced></mrow>'
     assert mpp.doprint(fresnelc(x)) ==  '<mrow><mi>C</mi><mfenced><mi>x</mi></mfenced></mrow>'
-    assert mpp.doprint(Heaviside(x)) == '<mrow><mi>&#x398;</mi><mfenced><mi>x</mi></mfenced></mrow>'
+    assert mpp.doprint(Heaviside(x)) == '<mrow><mi>&#x398;</mi><mfenced><mi>x</mi><mfrac><mn>1</mn><mn>2</mn></mfrac></mfenced></mrow>'
 
 
 def test_mathml_builtins():
@@ -1808,7 +1981,7 @@ def test_mathml_SingularityFunction():
 
 
 def test_mathml_matrix_functions():
-    from sympy.matrices import MatrixSymbol, Adjoint, Inverse, Transpose
+    from sympy.matrices import Adjoint, Inverse, Transpose
     X = MatrixSymbol('X', 2, 2)
     Y = MatrixSymbol('Y', 2, 2)
     assert mathml(Adjoint(X), printer='presentation') == \
@@ -1850,3 +2023,24 @@ def test_mathml_special_matrices():
     assert mathml(Identity(4), printer='presentation') == '<mi>&#x1D540;</mi>'
     assert mathml(ZeroMatrix(2, 2), printer='presentation') == '<mn>&#x1D7D8</mn>'
     assert mathml(OneMatrix(2, 2), printer='presentation') == '<mn>&#x1D7D9</mn>'
+
+def test_mathml_piecewise():
+    from sympy.functions.elementary.piecewise import Piecewise
+    # Content MathML
+    assert mathml(Piecewise((x, x <= 1), (x**2, True))) == \
+        '<piecewise><piece><ci>x</ci><apply><leq/><ci>x</ci><cn>1</cn></apply></piece><otherwise><apply><power/><ci>x</ci><cn>2</cn></apply></otherwise></piecewise>'
+
+    raises(ValueError, lambda: mathml(Piecewise((x, x <= 1))))
+
+
+def test_issue_17857():
+    assert mathml(Range(-oo, oo), printer='presentation') == \
+        '<mfenced close="}" open="{"><mi>&#8230;</mi><mn>-1</mn><mn>0</mn><mn>1</mn><mi>&#8230;</mi></mfenced>'
+    assert mathml(Range(oo, -oo, -1), printer='presentation') == \
+        '<mfenced close="}" open="{"><mi>&#8230;</mi><mn>1</mn><mn>0</mn><mn>-1</mn><mi>&#8230;</mi></mfenced>'
+
+
+def test_float_roundtrip():
+    x = sympify(0.8975979010256552)
+    y = float(mp.doprint(x).strip('</cn>'))
+    assert x == y
